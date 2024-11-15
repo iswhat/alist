@@ -100,14 +100,14 @@ func Key(storage driver.Driver, path string) string {
 }
 
 // List files in storage, not contains virtual file
-func List(ctx context.Context, storage driver.Driver, path string, args model.ListArgs, refresh ...bool) ([]model.Obj, error) {
+func List(ctx context.Context, storage driver.Driver, path string, args model.ListArgs) ([]model.Obj, error) {
 	if storage.Config().CheckStatus && storage.GetStorage().Status != WORK {
 		return nil, errors.Errorf("storage not init: %s", storage.GetStorage().Status)
 	}
 	path = utils.FixAndCleanPath(path)
 	log.Debugf("op.List %s", path)
 	key := Key(storage, path)
-	if !utils.IsBool(refresh...) {
+	if !args.Refresh {
 		if files, ok := listCache.Get(key); ok {
 			log.Debugf("use cache when list %s", path)
 			return files, nil
@@ -136,9 +136,7 @@ func List(ctx context.Context, storage driver.Driver, path string, args model.Li
 		model.WrapObjsName(files)
 		// call hooks
 		go func(reqPath string, files []model.Obj) {
-			for _, hook := range objsUpdateHooks {
-				hook(reqPath, files)
-			}
+			HandleObjsUpdateHook(reqPath, files)
 		}(utils.GetFullPath(storage.GetStorage().MountPath, path), files)
 
 		// sort objs
@@ -269,6 +267,12 @@ func Link(ctx context.Context, storage driver.Driver, path string, args model.Li
 		}
 		return link, nil
 	}
+
+	if storage.Config().OnlyLocal {
+		link, err := fn()
+		return link, file, err
+	}
+
 	link, err, _ := linkG.Do(key, fn)
 	return link, file, err
 }
@@ -465,6 +469,9 @@ func Copy(ctx context.Context, storage driver.Driver, srcPath, dstDirPath string
 func Remove(ctx context.Context, storage driver.Driver, path string) error {
 	if storage.Config().CheckStatus && storage.GetStorage().Status != WORK {
 		return errors.Errorf("storage not init: %s", storage.GetStorage().Status)
+	}
+	if utils.PathEqual(path, "/") {
+		return errors.New("delete root folder is not allowed, please goto the manage page to delete the storage instead")
 	}
 	path = utils.FixAndCleanPath(path)
 	rawObj, err := Get(ctx, storage, path)

@@ -21,7 +21,8 @@ import (
 	"github.com/alist-org/alist/v3/internal/sign"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/alist-org/alist/v3/server/common"
-	"github.com/djherbis/times"
+	"github.com/alist-org/times"
+	cp "github.com/otiai10/copy"
 	log "github.com/sirupsen/logrus"
 	_ "golang.org/x/image/webp"
 )
@@ -30,6 +31,10 @@ type Local struct {
 	model.Storage
 	Addition
 	mkdirPerm int32
+
+	// zero means no limit
+	thumbConcurrency int
+	thumbTokenBucket TokenBucket
 }
 
 func (d *Local) Config() driver.Config {
@@ -61,6 +66,18 @@ func (d *Local) Init(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+	if d.ThumbConcurrency != "" {
+		v, err := strconv.ParseUint(d.ThumbConcurrency, 10, 32)
+		if err != nil {
+			return err
+		}
+		d.thumbConcurrency = int(v)
+	}
+	if d.thumbConcurrency == 0 {
+		d.thumbTokenBucket = NewNopTokenBucket()
+	} else {
+		d.thumbTokenBucket = NewStaticTokenBucketWithMigration(d.thumbTokenBucket, d.thumbConcurrency)
 	}
 	return nil
 }
@@ -126,7 +143,6 @@ func (d *Local) FileInfoToObj(f fs.FileInfo, reqPath string, fullPath string) mo
 		},
 	}
 	return &file
-
 }
 func (d *Local) GetMeta(ctx context.Context, path string) (model.Obj, error) {
 	f, err := os.Stat(path)
@@ -178,7 +194,13 @@ func (d *Local) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 	fullPath := file.GetPath()
 	var link model.Link
 	if args.Type == "thumb" && utils.Ext(file.GetName()) != "svg" {
-		buf, thumbPath, err := d.getThumb(file)
+		var buf *bytes.Buffer
+		var thumbPath *string
+		err := d.thumbTokenBucket.Do(ctx, func() error {
+			var err error
+			buf, thumbPath, err = d.getThumb(file)
+			return err
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -220,11 +242,22 @@ func (d *Local) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	if utils.IsSubPath(srcPath, dstPath) {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
-	err := os.Rename(srcPath, dstPath)
-	if err != nil {
+	if err := os.Rename(srcPath, dstPath); err != nil && strings.Contains(err.Error(), "invalid cross-device link") {
+		// Handle cross-device file move in local driver
+		if err = d.Copy(ctx, srcObj, dstDir); err != nil {
+			return err
+		} else {
+			// Directly remove file without check recycle bin if successfully copied
+			if srcObj.IsDir() {
+				err = os.RemoveAll(srcObj.GetPath())
+			} else {
+				err = os.Remove(srcObj.GetPath())
+			}
+			return err
+		}
+	} else {
 		return err
 	}
-	return nil
 }
 
 func (d *Local) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
@@ -237,22 +270,18 @@ func (d *Local) Rename(ctx context.Context, srcObj model.Obj, newName string) er
 	return nil
 }
 
-func (d *Local) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
+func (d *Local) Copy(_ context.Context, srcObj, dstDir model.Obj) error {
 	srcPath := srcObj.GetPath()
 	dstPath := filepath.Join(dstDir.GetPath(), srcObj.GetName())
 	if utils.IsSubPath(srcPath, dstPath) {
 		return fmt.Errorf("the destination folder is a subfolder of the source folder")
 	}
-	var err error
-	if srcObj.IsDir() {
-		err = utils.CopyDir(srcPath, dstPath)
-	} else {
-		err = utils.CopyFile(srcPath, dstPath)
-	}
-	if err != nil {
-		return err
-	}
-	return nil
+	// Copy using otiai10/copy to perform more secure & efficient copy
+	return cp.Copy(srcPath, dstPath, cp.Options{
+		Sync:          true, // Sync file to disk after copy, may have performance penalty in filesystem such as ZFS
+		PreserveTimes: true,
+		NumOfWorkers:  0, // Serialized copy without using goroutine
+	})
 }
 
 func (d *Local) Remove(ctx context.Context, obj model.Obj) error {

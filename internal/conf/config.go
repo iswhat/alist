@@ -47,8 +47,9 @@ type LogConfig struct {
 }
 
 type TaskConfig struct {
-	Workers  int `json:"workers" env:"WORKERS"`
-	MaxRetry int `json:"max_retry" env:"MAX_RETRY"`
+	Workers        int  `json:"workers" env:"WORKERS"`
+	MaxRetry       int  `json:"max_retry" env:"MAX_RETRY"`
+	TaskPersistant bool `json:"task_persistant" env:"TASK_PERSISTANT"`
 }
 
 type TasksConfig struct {
@@ -132,10 +133,12 @@ func DefaultConfig() *Config {
 			Download: TaskConfig{
 				Workers:  5,
 				MaxRetry: 1,
+				// TaskPersistant: true,
 			},
 			Transfer: TaskConfig{
 				Workers:  5,
 				MaxRetry: 2,
+				// TaskPersistant: true,
 			},
 			Upload: TaskConfig{
 				Workers: 5,
@@ -143,6 +146,7 @@ func DefaultConfig() *Config {
 			Copy: TaskConfig{
 				Workers:  5,
 				MaxRetry: 2,
+				// TaskPersistant: true,
 			},
 		},
 		Cors: Cors{

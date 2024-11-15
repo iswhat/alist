@@ -5,13 +5,13 @@
   <a href="https://goreportcard.com/report/github.com/alist-org/alist/v3">
     <img src="https://goreportcard.com/badge/github.com/alist-org/alist/v3" alt="latest version" />
   </a>
-  <a href="https://github.com/Xhofe/alist/blob/main/LICENSE">
+  <a href="https://github.com/alist-org/alist/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/Xhofe/alist" alt="License" />
   </a>
-  <a href="https://github.com/Xhofe/alist/actions?query=workflow%3ABuild">
+  <a href="https://github.com/alist-org/alist/actions?query=workflow%3ABuild">
     <img src="https://img.shields.io/github/actions/workflow/status/Xhofe/alist/build.yml?branch=main" alt="Build status" />
   </a>
-  <a href="https://github.com/Xhofe/alist/releases">
+  <a href="https://github.com/alist-org/alist/releases">
     <img src="https://img.shields.io/github/release/Xhofe/alist" alt="latest version" />
   </a>
   <a title="Crowdin" target="_blank" href="https://crwd.in/alist">
@@ -19,13 +19,13 @@
   </a>
 </div>
 <div>
-  <a href="https://github.com/Xhofe/alist/discussions">
+  <a href="https://github.com/alist-org/alist/discussions">
     <img src="https://img.shields.io/github/discussions/Xhofe/alist?color=%23ED8936" alt="discussions" />
   </a>
   <a href="https://discord.gg/F4ymsH4xv2">
     <img src="https://img.shields.io/discord/1018870125102895134?logo=discord" alt="discussions" />
   </a>
-  <a href="https://github.com/Xhofe/alist/releases">
+  <a href="https://github.com/alist-org/alist/releases">
     <img src="https://img.shields.io/github/downloads/Xhofe/alist/total?color=%239F7AEA&logo=github" alt="Downloads" />
   </a>
   <a href="https://hub.docker.com/r/xhofe/alist">
@@ -105,7 +105,7 @@
 
 ## 讨论
 
-一般问题请到[讨论论坛](https://github.com/Xhofe/alist/discussions) ，**issue仅针对错误报告和功能请求。**
+一般问题请到[讨论论坛](https://github.com/alist-org/alist/discussions) ，**issue仅针对错误报告和功能请求。**
 
 ## 赞助
 
@@ -115,7 +115,7 @@ AList 是一个开源软件，如果你碰巧喜欢这个项目，并希望我�
 
 - [VidHub](https://apps.apple.com/app/apple-store/id1659622164?pt=118612019&ct=alist&mt=8) - 苹果生态下优雅的网盘视频播放器，iPhone，iPad，Mac，Apple TV全平台支持。
 - [亚洲云](https://www.asiayun.com/aff/QQCOOQKZ) - 高防服务器|服务器租用|福州高防|广东电信|香港服务器|美国服务器|海外服务器 - 国内靠谱的企业级云计算服务提供商 (国内API服务器赞助)
-- [找资源](https://zhaoziyuan.pw/) - 阿里云盘资源搜索引擎
+- [找资源](http://zhaoziyuan2.cc/) - 阿里云盘资源搜索引擎
 
 ## 贡献者
 
@@ -136,4 +136,4 @@ Thanks goes to these wonderful people:
 
 ---
 
-> [@博客](https://nn.ci/) · [@GitHub](https://github.com/Xhofe) · [@Telegram群](https://t.me/alist_chat) · [@Discord](https://discord.gg/F4ymsH4xv2)
+> [@博客](https://nn.ci/) · [@GitHub](https://github.com/alist-org) · [@Telegram群](https://t.me/alist_chat) · [@Discord](https://discord.gg/F4ymsH4xv2)

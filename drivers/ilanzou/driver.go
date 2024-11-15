@@ -67,26 +67,28 @@ func (d *ILanZou) Drop(ctx context.Context) error {
 
 func (d *ILanZou) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
 	offset := 1
-	limit := 60
 	var res []ListItem
 	for {
 		var resp ListResp
 		_, err := d.proved("/record/file/list", http.MethodGet, func(req *resty.Request) {
-			req.SetQueryParams(map[string]string{
-				"type":     "0",
-				"folderId": dir.GetID(),
-				"offset":   strconv.Itoa(offset),
-				"limit":    strconv.Itoa(limit),
-			}).SetResult(&resp)
+			params := []string{
+				"offset=" + strconv.Itoa(offset),
+				"limit=60",
+				"folderId=" + dir.GetID(),
+				"type=0",
+			}
+			queryString := strings.Join(params, "&")
+			req.SetQueryString(queryString).SetResult(&resp)
 		})
 		if err != nil {
 			return nil, err
 		}
 		res = append(res, resp.List...)
-		if resp.TotalPage <= resp.Offset {
+		if resp.Offset < resp.TotalPage {
+			offset++
+		} else {
 			break
 		}
-		offset++
 	}
 	return utils.SliceConvert(res, func(f ListItem) (model.Obj, error) {
 		updTime, err := time.ParseInLocation("2006-01-02 15:04:05", f.UpdTime, time.Local)
@@ -118,36 +120,39 @@ func (d *ILanZou) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 	if err != nil {
 		return nil, err
 	}
-	query := u.Query()
-	query.Set("uuid", d.UUID)
-	query.Set("devType", "6")
-	query.Set("devCode", d.UUID)
-	query.Set("devModel", "chrome")
-	query.Set("devVersion", d.conf.devVersion)
-	query.Set("appVersion", "")
-	ts, err := getTimestamp(d.conf.secret)
-	if err != nil {
-		return nil, err
+	ts, ts_str, err := getTimestamp(d.conf.secret)
+
+	params := []string{
+		"uuid=" + url.QueryEscape(d.UUID),
+		"devType=6",
+		"devCode=" + url.QueryEscape(d.UUID),
+		"devModel=chrome",
+		"devVersion=" + url.QueryEscape(d.conf.devVersion),
+		"appVersion=",
+		"timestamp=" + ts_str,
+		"appToken=" + url.QueryEscape(d.Token),
+		"enable=0",
 	}
-	query.Set("timestamp", ts)
-	query.Set("appToken", d.Token)
-	query.Set("enable", "1")
+
 	downloadId, err := mopan.AesEncrypt([]byte(fmt.Sprintf("%s|%s", file.GetID(), d.userID)), d.conf.secret)
 	if err != nil {
 		return nil, err
 	}
-	query.Set("downloadId", hex.EncodeToString(downloadId))
-	auth, err := mopan.AesEncrypt([]byte(fmt.Sprintf("%s|%d", file.GetID(), time.Now().UnixMilli())), d.conf.secret)
+	params = append(params, "downloadId="+url.QueryEscape(hex.EncodeToString(downloadId)))
+
+	auth, err := mopan.AesEncrypt([]byte(fmt.Sprintf("%s|%d", file.GetID(), ts)), d.conf.secret)
 	if err != nil {
 		return nil, err
 	}
-	query.Set("auth", hex.EncodeToString(auth))
-	u.RawQuery = query.Encode()
+	params = append(params, "auth="+url.QueryEscape(hex.EncodeToString(auth)))
+
+	u.RawQuery = strings.Join(params, "&")
 	realURL := u.String()
 	// get the url after redirect
 	res, err := base.NoRedirectClient.R().SetHeaders(map[string]string{
 		//"Origin":  d.conf.site,
-		"Referer": d.conf.site + "/",
+		"Referer":    d.conf.site + "/",
+		"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
 	}).Get(realURL)
 	if err != nil {
 		return nil, err
@@ -155,7 +160,7 @@ func (d *ILanZou) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 	if res.StatusCode() == 302 {
 		realURL = res.Header().Get("location")
 	} else {
-		return nil, fmt.Errorf("redirect failed, status: %d", res.StatusCode())
+		return nil, fmt.Errorf("redirect failed, status: %d, msg: %s", res.StatusCode(), utils.Json.Get(res.Body(), "msg").ToString())
 	}
 	link := model.Link{URL: realURL}
 	return &link, nil
@@ -173,7 +178,7 @@ func (d *ILanZou) MakeDir(ctx context.Context, parentDir model.Obj, dirName stri
 		return nil, err
 	}
 	return &model.Object{
-		ID: utils.Json.Get(res, "list", "0", "id").ToString(),
+		ID: utils.Json.Get(res, "list", 0, "id").ToString(),
 		//Path:     "",
 		Name:     dirName,
 		Size:     0,
@@ -284,7 +289,7 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileSt
 		req.SetBody(base.Json{
 			"fileId":   "",
 			"fileName": stream.GetName(),
-			"fileSize": stream.GetSize() / 1024,
+			"fileSize": stream.GetSize()/1024 + 1,
 			"folderId": dstDir.GetID(),
 			"md5":      etag,
 			"type":     1,
@@ -342,10 +347,12 @@ func (d *ILanZou) Put(ctx context.Context, dstDir model.Obj, stream model.FileSt
 	var resp UploadResultResp
 	for i := 0; i < 10; i++ {
 		_, err = d.unproved("/7n/results", http.MethodPost, func(req *resty.Request) {
-			req.SetQueryParams(map[string]string{
-				"tokenList": token,
-				"tokenTime": time.Now().Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)"),
-			}).SetResult(&resp)
+			params := []string{
+				"tokenList=" + token,
+				"tokenTime=" + time.Now().Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)"),
+			}
+			queryString := strings.Join(params, "&")
+			req.SetQueryString(queryString).SetResult(&resp)
 		})
 		if err != nil {
 			return nil, err
